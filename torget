@@ -1,0 +1,190 @@
+#! /usr/bin/env python3
+
+import argparse
+import sys
+from urllib import error, parse, request
+from table import Table
+from ui import Term
+from plugin import Loader
+import os
+import cmd
+import string
+
+class TorGet(cmd.Cmd):
+    prompt = 'torget> '
+    intro = 'Type {0}help{1} to get the list of commands\n'.format(Term.BOLD, Term.END)
+    doc_header = 'Commands (type help <command>):'
+    nohelp = 'No help on command %s'
+    misc_header = 'Shortcuts:'
+
+    def __init__(self, plugins_dir, out_dir, init_query = ''):
+        super().__init__()
+        self._page = 0
+        self._results = []
+        self._cache_search = {}
+        self._continue = True
+        self._out_dir = out_dir
+        self._plugin_loader = Loader(plugins_dir)
+        Term.print_info('* Plugins loaded: {0}'.format(', '.join(self._plugin_loader.get_names())))
+        if init_query != '':
+            self.do_search(init_query)
+
+    def _print_help(self, desc, cmd, short = None, *args):
+        s = Term.BGREEN + cmd + Term.END
+        cmdlen = len(cmd)
+        if len(args) > 0:
+            for arg in args:
+                cmdlen += len(arg) + 2
+                s += ' <' + Term.BGREEN + arg + Term.END + '>'
+        if cmdlen < 8:
+            s += '\t'
+        s += '\t\t' + desc
+        if short != None:
+            s += ' (short: ' + short + ')'
+        print(s)
+
+    def _results_by_page(self):
+        index = self._page * 10
+        return self._results[index:(index + 10)]
+
+    def _max_pages(self):
+        return int(len(self._results) / 10)
+
+    def _add_to_cache(self, query, results):
+        if query in self._cache_search:
+            return
+        if len(self._cache_search) > 20:
+            self._cache_search = {}
+        self._cache_search[query] = results
+
+    def default(self, line):
+        cmd, *args = line.split(' ')
+        args = ' '.join(args)
+        if cmd == '<':
+            if self._page > 0:
+                self._page -= 1
+            else:
+                self._page = self._max_pages()
+            self.do_print()
+        elif cmd == '>':
+            if self._page < self._max_pages():
+                self._page += 1
+            else:
+                self._page = 0
+            self.do_print()
+        elif cmd == 's':
+            return self.do_search(args)
+        elif cmd == 'd':
+            return self.do_download(args)
+        elif cmd == 'p':
+            return self.do_print()
+        elif cmd == 'q':
+            return self.do_quit(args)
+        elif cmd == 'EOF':
+            return
+        else:
+            Term.print_error('Unknown command {0}'.format(cmd))
+
+    # Search
+    def help_s(self):
+        self.help_search()
+    def help_search(self):
+        self._print_help('Search a torrent', 'search', 's', 'query')
+    def do_search(self, query):
+        if query in self._cache_search:
+            self._results = self._cache_search[query]
+        else:
+            out = self._plugin_loader.exec_command('plugin_search', query)
+            self._results = [res for out_res in out for res in out_res]
+            self._add_to_cache(query, self._results)
+        self.do_print()
+
+    # Print
+    def help_p(self):
+        self.help_print()
+    def help_print(self):
+        self._print_help('Print the last search results', 'print', 'p')
+    def do_print(self):
+        res_by_page = self._results_by_page()
+        if len(res_by_page) < 1:
+            Term.print_info('No search results')
+            return
+        table = Table(Table.ALIGN_RIGHT)
+        i=1
+        table.add_header('', 'Title', 'Peers', 'Seeders')
+        table.add_colors(Term.BGREEN, None, Term.BRED, Term.BBLUE)
+        for res in res_by_page:
+            table.add_line(str(i), res['title'], str(res['peers']), str(res['seeders']))
+            i += 1
+        table.print()
+        print('| Page {0} / {1} | {2}<{3} (previous page), {2}>{3} (next page)'.format(self._page + 1, self._max_pages() + 1, Term.BGREEN, Term.END))
+        table.print_separator()
+
+    # Download
+    def complete_download(self, text, line, begidx, endidx):
+        if len(self._results) > 0:
+            res = range(1, len(self._results) + 1)
+            return [str(i) for i in res]
+        return []
+    def help_d(self):
+        self.help_download()
+    def help_download(self):
+        self._print_help('Download a torrent file. # is the search index', 'download', 'd', '#')
+    def do_download(self, arg):
+        n = int(arg)
+        res_by_page = self._results_by_page()
+        res = res_by_page[n]
+        req = request.Request(res['url'], headers={'User-Agent': 'Mozilla/5.0'})
+        try:
+            torrent = request.urlopen(req)
+        except error.HTTPError as err:
+            Term.print_error(err)
+        else:
+            fname = os.path.join(self._out_dir, res['title'] + '.torrent')
+            with open(fname, 'wb+') as f:
+                f.write(torrent.read())
+            Term.print_info('Saved in: {0}'.format(fname))
+
+    # Quit
+    def help_q(self):
+        self.help_download()
+    def help_quit(self):
+        self._print_help('Exit the program', 'quit', 'q')
+    def do_quit(self, *arg):
+        return True
+    def help_exit(self):
+        self.help_quit()
+    def do_exit(self, *args):
+        return self.do_quit()
+
+
+def main():
+    def check_directory(dirname):
+        if not os.path.exists(dirname):
+            Term.print_error('{0}: No such file or directory'.format(dirname))
+            return False
+        elif not os.path.isdir(dirname):
+            Term.print_error('{0}: Invalid directory'.format(dirname))
+            return False
+        return True
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--torrents', type=str, metavar='DIR',
+                        required=False, default=os.getcwd(),
+                        help='Save torrents in this directory')
+    parser.add_argument('--plugins', type=str, metavar='DIR',
+                        required=False, default='./plugins',
+                        help='The plugins directory')
+    parser.add_argument('query', type=str, nargs='*',
+                        help='Initial search query')
+    args = parser.parse_args()
+    if not check_directory(args.torrents) or not check_directory(args.plugins):
+        return 1
+    torget = TorGet(args.plugins, args.torrents, init_query = ' '.join(args.query))
+    try:
+        torget.cmdloop()
+    except KeyboardInterrupt:
+        torget.do_quit(None)
+
+if __name__ == '__main__':
+    sys.exit(main())
