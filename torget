@@ -110,10 +110,10 @@ class TorGet(cmd.Cmd):
             return
         table = Table(Table.ALIGN_RIGHT)
         i=1
-        table.add_header('', 'Title', 'Peers', 'Seeders')
+        table.add_header('', 'Title', 'Seeders', 'Leechers')
         table.add_colors(Term.BGREEN, None, Term.BRED, Term.BBLUE)
         for res in res_by_page:
-            table.add_line(str(i), res['title'], str(res['peers']), str(res['seeders']))
+            table.add_line(str(i), res['title'], str(res['seeders']), str(res['leechers']))
             i += 1
         table.print()
         print('| Page {0} / {1} | {2}<{3} (previous page), {2}>{3} (next page)'.format(self._page + 1, self._max_pages() + 1, Term.BGREEN, Term.END))

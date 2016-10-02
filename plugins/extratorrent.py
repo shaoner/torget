@@ -13,6 +13,6 @@ def plugin_search(query):
     return [{
         'title': r['title'],
         'url': r['torrentLink'],
-        'seeders': r['seeds'],
-        'peers': r['peers']
+        'seeders': int(r['seeds']),
+        'leechers': int(r['leechs'])
     } for r in reslist]

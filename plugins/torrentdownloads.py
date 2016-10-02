@@ -18,7 +18,7 @@ def plugin_search(query):
         res.append({
             'title': item.find('title').text,
             'url': torrent_url,
-            'seeders': item.find('seeders').text,
-            'peers': item.find('leechers').text
+            'seeders': int(item.find('seeders').text),
+            'leechers': int(item.find('leechers').text)
         })
     return res

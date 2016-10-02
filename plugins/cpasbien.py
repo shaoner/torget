@@ -24,20 +24,18 @@ def plugin_search(query):
         data = line.find_class('titre')[0]
         href = data.get('href')
         torrent_url = TORRENT_URL + os.path.basename(href).replace('.html','.torrent')
-        seeders = 0
-        peers = 0
         try:
             seeders = int(line.find_class('seed_ok')[0].text)
         except:
             seeders = 0
         try:
-            peers = int(line.find_class('down')[0].text)
+            leechers = int(line.find_class('down')[0].text)
         except:
-            peers = 0
+            leechers = 0
         res.append({
             'title': data.text,
             'url': torrent_url,
             'seeders': seeders,
-            'peers': peers
+            'leechers': leechers
         })
     return res
