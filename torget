@@ -160,7 +160,7 @@ class TorGet(cmd.Cmd):
     def help_download(self):
         self._print_help('Download a torrent file. # is the search index', 'download', 'd', '#')
     def do_download(self, arg):
-        n = int(arg)
+        n = int(arg) - 1
         res_by_page = self._results_by_page()
         res = res_by_page[n]
         req = request.Request(res['url'], headers={'User-Agent': 'Mozilla/5.0'})
