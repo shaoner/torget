@@ -8,7 +8,6 @@ from ui import Term
 from plugin import Loader
 import os
 import cmd
-import string
 
 class TorGet(cmd.Cmd):
     prompt = 'torget> '

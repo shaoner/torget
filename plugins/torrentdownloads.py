@@ -7,7 +7,7 @@ TORRENT_URL = 'http://itorrents.org/torrent/'
 SEARCH_URL = 'http://www.torrentdownloads.me/rss.xml?type=search&search='
 
 def plugin_search(query):
-    url = SEARCH_URL + query.split('+')
+    url = SEARCH_URL + query.replace(' ', '+')
     req = request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.7.5) Gecko/20041202 Firefox/1.0'})
     result = request.urlopen(req)
     s = result.read().decode('utf-8')
