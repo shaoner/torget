@@ -9,6 +9,8 @@ from plugin import Loader
 import os
 import cmd
 
+SORTING_KEY = ('title', 'seeders', 'leechers')
+
 class TorGet(cmd.Cmd):
     prompt = 'torget> '
     intro = 'Type {0}help{1} to get the list of commands\n'.format(Term.BOLD, Term.END)
@@ -23,6 +25,8 @@ class TorGet(cmd.Cmd):
         self._cache_search = {}
         self._continue = True
         self._out_dir = out_dir
+        self._sortby = 'seeders'
+        self._sortrev = True
         self._plugin_loader = Loader(plugins_dir)
         Term.print_info('* Plugins loaded: {0}'.format(', '.join(self._plugin_loader.get_names())))
         if init_query != '':
@@ -96,6 +100,7 @@ class TorGet(cmd.Cmd):
             out = self._plugin_loader.exec_command('plugin_search', query)
             self._results = [res for out_res in out for res in out_res]
             self._add_to_cache(query, self._results)
+        self._results.sort(key=lambda e: e[self._sortby], reverse=self._sortrev)
         self.do_print()
 
     # Print
@@ -118,6 +123,31 @@ class TorGet(cmd.Cmd):
         table.print()
         print('| Page {0} / {1} | {2}<{3} (previous page), {2}>{3} (next page)'.format(self._page + 1, self._max_pages() + 1, Term.BGREEN, Term.END))
         table.print_separator()
+
+    # Sort
+    def complete_sort(self, text, line, begidx, endidx):
+        for key in SORTING_KEY:
+            if key.startswith(text):
+                return [key]
+        return SORTING_KEY
+    def help_sort(self):
+        sargs = '[-][' + '|'.join(SORTING_KEY) + ']'
+        self._print_help('Sort results (Use \'-\' prefix for ascending order)', 'sort', None, sargs)
+    def do_sort(self, arg):
+        arg = arg.lower()
+        rev = True
+        if arg.startswith('-'):
+            arg = arg[1:]
+            rev = False
+        if arg != '' and not arg in SORTING_KEY:
+            Term.print_error('Unknown sorting key {0}'.format(arg))
+            Term.print_error('Valid sorting keys: {0}'.format(' '.join(SORTING_KEY)))
+        else:
+            if arg != '':
+                self._sortby = arg
+            self._sortrev = rev
+            self._results.sort(key=lambda e: e[arg], reverse=rev)
+            self.do_print()
 
     # Download
     def complete_download(self, text, line, begidx, endidx):
