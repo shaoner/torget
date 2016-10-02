@@ -184,6 +184,7 @@ def main():
         torget.cmdloop()
     except KeyboardInterrupt:
         torget.do_quit(None)
+    return 0
 
 if __name__ == '__main__':
     sys.exit(main())
